@@ -21,6 +21,7 @@ import org.springframework.context.annotation.Primary;
 
 import com.skala.helpdesk.advisor.AuditAdvisor;
 import com.skala.helpdesk.advisor.AuditLog;
+import com.skala.helpdesk.advisor.InjectionGuardAdvisor;
 import com.skala.helpdesk.advisor.TokenMeterAdvisor;
 import com.skala.helpdesk.tools.OrderTools;
 import com.skala.helpdesk.tools.TicketTools;
@@ -29,12 +30,15 @@ import com.skala.helpdesk.tools.TicketTools;
  * 상담 에이전트 조립. Advisor의 order가 곧 정책이다:
  *
  * <pre>
- * AuditAdvisor(최우선)      가장 바깥 — 무슨 일이 있었든 요청·응답은 기록된다
- * SafeGuardAdvisor(100)     차단은 저장(메모리)보다 앞에 있어야 한다
+ * AuditAdvisor(최우선)        가장 바깥 — 무슨 일이 있었든 요청·응답은 기록된다
+ * InjectionGuardAdvisor(90)  인젝션 문구·과도한 길이는 SafeGuardAdvisor가 못 잡아 코드로 막는다
+ * SafeGuardAdvisor(100)      슬라이드가 명시한 민감어(주민등록번호·카드번호) 리터럴 차단
  * MessageChatMemoryAdvisor(200)
  * QuestionAnswerAdvisor(300)
- * TokenMeterAdvisor(900)    가장 안쪽 — 실제 모델 호출을 가장 가까이서 잰다
+ * TokenMeterAdvisor(900)     가장 안쪽 — 실제 모델 호출을 가장 가까이서 잰다
  * </pre>
+ *
+ * <p>차단은 저장(메모리)보다 앞에 있어야 한다 — 그래야 막힌 문장이 대화 기록에 남지 않는다.
  *
  * <p>Phase 8 — 주 모델(primaryChatClient)과 폴백 모델(fallbackChatClient)은 같은 시스템
  * 프롬프트·Advisor 체인·도구를 공유하고 모델만 다르다. 폴백 전환은 {@code HelpDeskService}의
@@ -102,8 +106,10 @@ class AiConfig {
                                       AuditLog auditLog, MeterRegistry registry) {
         return new Advisor[] {
                 new AuditAdvisor(auditLog),
+                new InjectionGuardAdvisor(),
                 SafeGuardAdvisor.builder()
                         .sensitiveWords(props.safety().sensitiveWords())
+                        .failureResponse("주민등록번호·카드번호 등 민감정보가 포함된 요청은 처리할 수 없습니다.")
                         .order(100)
                         .build(),
                 MessageChatMemoryAdvisor.builder(chatMemory).order(200).build(),
