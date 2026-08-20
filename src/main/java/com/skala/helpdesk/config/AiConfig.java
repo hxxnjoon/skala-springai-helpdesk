@@ -5,14 +5,19 @@ import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.SafeGuardAdvisor;
+import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 
 import com.skala.helpdesk.advisor.AuditAdvisor;
 import com.skala.helpdesk.advisor.AuditLog;
@@ -21,7 +26,7 @@ import com.skala.helpdesk.tools.OrderTools;
 import com.skala.helpdesk.tools.TicketTools;
 
 /**
- * Phase 1 — 상담 에이전트 조립. Advisor의 order가 곧 정책이다:
+ * 상담 에이전트 조립. Advisor의 order가 곧 정책이다:
  *
  * <pre>
  * AuditAdvisor(최우선)      가장 바깥 — 무슨 일이 있었든 요청·응답은 기록된다
@@ -31,7 +36,9 @@ import com.skala.helpdesk.tools.TicketTools;
  * TokenMeterAdvisor(900)    가장 안쪽 — 실제 모델 호출을 가장 가까이서 잰다
  * </pre>
  *
- * <p>도구 연동(Phase 4)과 폴백 모델(Phase 8)은 이 설정에 이후 단계에서 추가된다.
+ * <p>Phase 8 — 주 모델(primaryChatClient)과 폴백 모델(fallbackChatClient)은 같은 시스템
+ * 프롬프트·Advisor 체인·도구를 공유하고 모델만 다르다. 폴백 전환은 {@code HelpDeskService}의
+ * 서킷브레이커가 담당한다.
  */
 @Configuration
 class AiConfig {
@@ -58,28 +65,56 @@ class AiConfig {
                 .build();
     }
 
+    /** 자동 구성된 기본 모델(gpt-4o-mini 등, application.yml) 위에 Advisor 체인만 얹는다. */
     @Bean
-    ChatClient helpDeskChatClient(ChatClient.Builder builder, VectorStore vectorStore, ChatMemory chatMemory,
-                                   HelpDeskProperties props, AuditLog auditLog, MeterRegistry registry,
-                                   OrderTools orderTools, TicketTools ticketTools) {
+    @Primary
+    ChatClient primaryChatClient(ChatClient.Builder builder, VectorStore vectorStore, ChatMemory chatMemory,
+                                  HelpDeskProperties props, AuditLog auditLog, MeterRegistry registry,
+                                  OrderTools orderTools, TicketTools ticketTools) {
         return builder
                 .defaultSystem(SYSTEM_PROMPT)
-                .defaultAdvisors(
-                        new AuditAdvisor(auditLog),
-                        SafeGuardAdvisor.builder()
-                                .sensitiveWords(props.safety().sensitiveWords())
-                                .order(100)
-                                .build(),
-                        MessageChatMemoryAdvisor.builder(chatMemory).order(200).build(),
-                        QuestionAnswerAdvisor.builder(vectorStore)
-                                .searchRequest(SearchRequest.builder()
-                                        .topK(props.rag().topK())
-                                        .similarityThreshold(props.rag().threshold())
-                                        .build())
-                                .order(300)
-                                .build(),
-                        new TokenMeterAdvisor(registry))
+                .defaultAdvisors(sharedAdvisors(vectorStore, chatMemory, props, auditLog, registry))
                 .defaultTools(orderTools, ticketTools)
                 .build();
+    }
+
+    /** 주 모델과 별개의 {@link OpenAiChatModel} 인스턴스 — 같은 OpenAiApi 연결을 재사용하고 모델명만 다르다. */
+    @Bean
+    OpenAiChatModel fallbackOpenAiChatModel(OpenAiApi openAiApi, HelpDeskProperties props) {
+        return OpenAiChatModel.builder()
+                .openAiApi(openAiApi)
+                .defaultOptions(OpenAiChatOptions.builder().model(props.model().fallback()).build())
+                .build();
+    }
+
+    @Bean
+    ChatClient fallbackChatClient(OpenAiChatModel fallbackOpenAiChatModel, VectorStore vectorStore,
+                                   ChatMemory chatMemory, HelpDeskProperties props, AuditLog auditLog,
+                                   MeterRegistry registry, OrderTools orderTools, TicketTools ticketTools) {
+        return ChatClient.builder(fallbackOpenAiChatModel)
+                .defaultSystem(SYSTEM_PROMPT)
+                .defaultAdvisors(sharedAdvisors(vectorStore, chatMemory, props, auditLog, registry))
+                .defaultTools(orderTools, ticketTools)
+                .build();
+    }
+
+    private Advisor[] sharedAdvisors(VectorStore vectorStore, ChatMemory chatMemory, HelpDeskProperties props,
+                                      AuditLog auditLog, MeterRegistry registry) {
+        return new Advisor[] {
+                new AuditAdvisor(auditLog),
+                SafeGuardAdvisor.builder()
+                        .sensitiveWords(props.safety().sensitiveWords())
+                        .order(100)
+                        .build(),
+                MessageChatMemoryAdvisor.builder(chatMemory).order(200).build(),
+                QuestionAnswerAdvisor.builder(vectorStore)
+                        .searchRequest(SearchRequest.builder()
+                                .topK(props.rag().topK())
+                                .similarityThreshold(props.rag().threshold())
+                                .build())
+                        .order(300)
+                        .build(),
+                new TokenMeterAdvisor(registry)
+        };
     }
 }
