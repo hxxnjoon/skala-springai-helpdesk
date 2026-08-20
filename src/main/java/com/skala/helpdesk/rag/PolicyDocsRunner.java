@@ -28,8 +28,16 @@ public class PolicyDocsRunner implements ApplicationRunner {
             log.info("벡터스토어 스냅샷이 이미 있어 자동 인제스트를 건너뜁니다.");
             return;
         }
-        var results = ingestService.ingestSampleDocs();
-        ingestService.persistSnapshot();
-        log.info("정책 문서 자동 인제스트 완료: {}", results);
+        // OPENAI_API_KEY가 없어도 앱은 떠야 한다 — 임베딩 호출 실패는 여기서 삼키고,
+        // 실제 채팅 호출 시점에만 오류가 나게 둔다(ch02_layered와 동일한 원칙).
+        try {
+            var results = ingestService.ingestSampleDocs();
+            ingestService.persistSnapshot();
+            log.info("정책 문서 자동 인제스트 완료: {}", results);
+        }
+        catch (Exception e) {
+            log.warn("정책 문서 자동 인제스트 실패 — OPENAI_API_KEY를 확인한 뒤 "
+                    + "POST /api/admin/ingest로 수동 인제스트하세요: {}", e.toString());
+        }
     }
 }
