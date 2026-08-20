@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SKALA HelpDesk AI</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --panel: #ffffff;
+    --border: #e2e4e9;
+    --text: #1f2328;
+    --muted: #6b7280;
+    --accent: #2563eb;
+    --accent-weak: #eef2ff;
+    --user-bubble: #2563eb;
+    --user-bubble-text: #ffffff;
+    --assistant-bubble: #f1f2f5;
+    --danger: #dc2626;
+    --danger-weak: #fef2f2;
+    --ok: #16a34a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Pretendard, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    padding: 14px 20px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header h1 { font-size: 16px; margin: 0; }
+  header .who { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 10px; }
+  header button { font-size: 12px; }
+
+  #login {
+    max-width: 360px;
+    margin: 80px auto;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+  }
+  #login h2 { margin-top: 0; font-size: 18px; }
+  #login label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
+  #login input {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px;
+  }
+  #login button {
+    margin-top: 18px; width: 100%; padding: 10px; border: none; border-radius: 8px;
+    background: var(--accent); color: #fff; font-size: 14px; cursor: pointer;
+  }
+  #login .hint { margin-top: 14px; font-size: 12px; color: var(--muted); line-height: 1.5; }
+  #login .error { margin-top: 10px; font-size: 13px; color: var(--danger); }
+
+  #app { display: none; max-width: 900px; margin: 0 auto; padding: 20px; gap: 16px; flex-direction: column; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+
+  #session-bar { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--muted); }
+  #session-bar button { font-size: 12px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border); background: #fff; cursor: pointer; }
+
+  #messages { display: flex; flex-direction: column; gap: 12px; min-height: 320px; max-height: 55vh; overflow-y: auto; }
+  .msg { display: flex; flex-direction: column; max-width: 80%; }
+  .msg.user { align-self: flex-end; align-items: flex-end; }
+  .msg.assistant { align-self: flex-start; align-items: flex-start; }
+  .bubble { padding: 10px 14px; border-radius: 14px; font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
+  .msg.user .bubble { background: var(--user-bubble); color: var(--user-bubble-text); border-bottom-right-radius: 4px; }
+  .msg.assistant .bubble { background: var(--assistant-bubble); color: var(--text); border-bottom-left-radius: 4px; }
+  .meta { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--accent-weak); color: var(--accent); }
+  .chip.tool { background: #fff7ed; color: #c2410c; }
+  .chip.blocked { background: var(--danger-weak); color: var(--danger); }
+
+  #composer { display: flex; gap: 8px; margin-top: 14px; }
+  #composer textarea {
+    flex: 1; resize: none; height: 48px; padding: 10px 12px; border: 1px solid var(--border);
+    border-radius: 10px; font-size: 14px; font-family: inherit;
+  }
+  #composer .controls { display: flex; flex-direction: column; gap: 6px; }
+  #composer button {
+    padding: 10px 16px; border: none; border-radius: 10px; background: var(--accent); color: #fff;
+    font-size: 14px; cursor: pointer;
+  }
+  #composer button:disabled { opacity: .5; cursor: default; }
+  label.stream-toggle { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
+
+  #admin h2 { font-size: 15px; margin: 0 0 10px; }
+  #admin .section { margin-bottom: 18px; }
+  #admin table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #admin th, #admin td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  #admin button.approve { font-size: 12px; padding: 4px 10px; border-radius: 6px; border: none; background: var(--ok); color: #fff; cursor: pointer; }
+  #admin .search-row { display: flex; gap: 8px; margin-bottom: 10px; }
+  #admin .search-row input { flex: 1; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; }
+  #admin .search-row button { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: #fff; cursor: pointer; }
+  #admin .preview { color: var(--muted); font-size: 12px; }
+  #admin-empty { font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div id="login">
+  <h2>SKALA HelpDesk AI</h2>
+  <label>아이디</label>
+  <input id="login-user" type="text" placeholder="user1" autocomplete="username" />
+  <label>비밀번호</label>
+  <input id="login-pass" type="password" placeholder="user1234" autocomplete="current-password" />
+  <button onclick="login()">로그인</button>
+  <div class="error" id="login-error"></div>
+  <div class="hint">기본 계정: user1/user1234(일반), admin1/admin1234(관리자)</div>
+</div>
+
+<div id="app">
+  <header>
+    <h1>SKALA HelpDesk AI</h1>
+    <div class="who">
+      <span id="who-label"></span>
+      <button onclick="logout()">로그아웃</button>
+    </div>
+  </header>
+
+  <div style="padding: 16px 20px; display:flex; flex-direction:column; gap:16px;">
+    <div class="card">
+      <div id="session-bar">
+        <span id="session-label"></span>
+        <button onclick="newSession()">새 세션 시작</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div id="messages"></div>
+      <div id="composer">
+        <textarea id="input" placeholder="반품 규정, 주문 상태, 교환/환불 접수 등을 물어보세요"></textarea>
+        <div class="controls">
+          <label class="stream-toggle"><input type="checkbox" id="stream-toggle" checked /> 스트리밍</label>
+          <button id="send-btn" onclick="send()">전송</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="admin" style="display:none;">
+      <h2>관리자 패널</h2>
+      <div class="section">
+        <div style="font-size:13px; margin-bottom:8px; color:var(--muted);">승인 대기 티켓</div>
+        <div id="tickets-empty" class="preview" style="display:none;">대기 중인 티켓이 없습니다.</div>
+        <table id="tickets-table" style="display:none;">
+          <thead><tr><th>#</th><th>주문번호</th><th>유형</th><th>사유</th><th></th></tr></thead>
+          <tbody id="tickets-body"></tbody>
+        </table>
+        <button onclick="loadTickets()" style="margin-top:8px; font-size:12px;">새로고침</button>
+      </div>
+      <div class="section">
+        <div style="font-size:13px; margin-bottom:8px; color:var(--muted);">인제스트된 청크 검색</div>
+        <div class="search-row">
+          <input id="chunk-q" type="text" placeholder="예: 반품" />
+          <button onclick="searchChunks()">검색</button>
+        </div>
+        <div id="chunk-results"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let authHeader = null;
+let username = null;
+let sessionId = null;
+
+function el(id) { return document.getElementById(id); }
+
+async function login() {
+  const user = el('login-user').value.trim();
+  const pass = el('login-pass').value;
+  el('login-error').textContent = '';
+  if (!user || !pass) { el('login-error').textContent = '아이디/비밀번호를 입력하세요.'; return; }
+
+  const candidate = 'Basic ' + btoa(user + ':' + pass);
+  try {
+    const res = await fetch('/api/chat/me', { headers: { 'Authorization': candidate } });
+    if (!res.ok) {
+      el('login-error').textContent = res.status === 401 ? '아이디/비밀번호가 올바르지 않습니다.' : ('로그인 실패 (' + res.status + ')');
+      return;
+    }
+    const me = await res.json();
+    authHeader = candidate;
+    username = me.username;
+    sessionId = localStorage.getItem('sid:' + username) || crypto.randomUUID();
+    localStorage.setItem('sid:' + username, sessionId);
+
+    el('login').style.display = 'none';
+    el('app').style.display = 'block';
+    el('who-label').textContent = me.username + (me.roles.includes('ADMIN') ? ' (관리자)' : '');
+    el('session-label').textContent = '세션: ' + sessionId;
+
+    if (me.roles.includes('ADMIN')) {
+      el('admin').style.display = 'block';
+      loadTickets();
+    }
+  } catch (e) {
+    el('login-error').textContent = '서버에 연결할 수 없습니다.';
+  }
+}
+
+function logout() {
+  authHeader = null; username = null; sessionId = null;
+  el('app').style.display = 'none';
+  el('admin').style.display = 'none';
+  el('messages').innerHTML = '';
+  el('login').style.display = 'block';
+  el('login-pass').value = '';
+}
+
+function newSession() {
+  sessionId = crypto.randomUUID();
+  localStorage.setItem('sid:' + username, sessionId);
+  el('session-label').textContent = '세션: ' + sessionId;
+  el('messages').innerHTML = '';
+}
+
+function appendMessage(role, text) {
+  const wrap = document.createElement('div');
+  wrap.className = 'msg ' + role;
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.textContent = text;
+  wrap.appendChild(bubble);
+  el('messages').appendChild(wrap);
+  el('messages').scrollTop = el('messages').scrollHeight;
+  return { wrap, bubble };
+}
+
+function appendMeta(wrap, sources, toolUsed) {
+  if ((!sources || sources.length === 0) && !toolUsed) return;
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  (sources || []).forEach(s => {
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.textContent = '출처: ' + s.document + (s.version ? (' (' + s.version + ')') : '');
+    meta.appendChild(chip);
+  });
+  if (toolUsed) {
+    const chip = document.createElement('span');
+    chip.className = 'chip tool';
+    chip.textContent = '🔧 도구 사용';
+    meta.appendChild(chip);
+  }
+  wrap.appendChild(meta);
+}
+
+let sending = false;
+
+async function send() {
+  if (sending) return; // Enter를 연달아 누르거나 Enter+클릭이 겹쳐도 같은 세션에 동시 요청이 나가지 않게 막는다.
+  const text = el('input').value.trim();
+  if (!text) return;
+  sending = true;
+  el('input').value = '';
+  el('send-btn').disabled = true;
+  appendMessage('user', text);
+
+  try {
+    if (el('stream-toggle').checked) {
+      await sendStreaming(text);
+    } else {
+      await sendSync(text);
+    }
+  } catch (e) {
+    const { wrap } = appendMessage('assistant', '오류: ' + e.message);
+    wrap.querySelector('.bubble').style.color = 'var(--danger)';
+  } finally {
+    sending = false;
+    el('send-btn').disabled = false;
+    el('input').focus();
+  }
+}
+
+async function sendSync(text) {
+  const res = await fetch('/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': authHeader },
+    body: JSON.stringify({ sessionId, message: text })
+  });
+  if (!res.ok) throw new Error('요청 실패 (' + res.status + ')');
+  const data = await res.json();
+  const { wrap } = appendMessage('assistant', data.answer);
+  appendMeta(wrap, data.sources, data.toolUsed);
+}
+
+// 네이티브 EventSource는 커스텀 Authorization 헤더를 못 보내서 fetch + 수동 SSE 파싱을 쓴다.
+async function sendStreaming(text) {
+  const res = await fetch('/api/chat/stream', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': authHeader },
+    body: JSON.stringify({ sessionId, message: text })
+  });
+  if (!res.ok) throw new Error('요청 실패 (' + res.status + ')');
+
+  const { wrap, bubble } = appendMessage('assistant', '');
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let answer = '';
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let idx;
+    while ((idx = buffer.indexOf('\n\n')) >= 0) {
+      const rawEvent = buffer.slice(0, idx);
+      buffer = buffer.slice(idx + 2);
+      const parsed = parseSSE(rawEvent);
+      if (parsed.event === 'token') {
+        answer += parsed.data;
+        bubble.textContent = answer;
+        el('messages').scrollTop = el('messages').scrollHeight;
+      } else if (parsed.event === 'sources') {
+        try {
+          const sources = JSON.parse(parsed.data);
+          appendMeta(wrap, sources, false);
+        } catch (e) { /* ignore malformed sources payload */ }
+      }
+    }
+  }
+}
+
+function parseSSE(rawEvent) {
+  let eventName = 'message';
+  const dataLines = [];
+  for (const line of rawEvent.split('\n')) {
+    if (line.startsWith('event:')) eventName = line.slice(6).trim();
+    else if (line.startsWith('data:')) dataLines.push(line.slice(5).replace(/^ /, ''));
+  }
+  return { event: eventName, data: dataLines.join('\n') };
+}
+
+el('input') && el('input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+
+// ── 관리자 패널 ──────────────────────────────────────────────
+async function loadTickets() {
+  const res = await fetch('/api/admin/tickets/pending', { headers: { 'Authorization': authHeader } });
+  if (!res.ok) return;
+  const tickets = await res.json();
+  if (tickets.length === 0) {
+    el('tickets-empty').style.display = 'block';
+    el('tickets-table').style.display = 'none';
+    return;
+  }
+  el('tickets-empty').style.display = 'none';
+  el('tickets-table').style.display = 'table';
+  const body = el('tickets-body');
+  body.innerHTML = '';
+  tickets.forEach(t => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + t.id + '</td><td>' + t.orderId + '</td><td>' + t.type + '</td><td>' + t.reason + '</td><td></td>';
+    const btn = document.createElement('button');
+    btn.className = 'approve';
+    btn.textContent = '승인';
+    btn.onclick = () => approveTicket(t.id, btn);
+    tr.lastElementChild.appendChild(btn);
+    body.appendChild(tr);
+  });
+}
+
+async function approveTicket(id, btn) {
+  if (btn.disabled) return; // 두 번 클릭해도 승인 요청이 두 번 나가지 않게 막는다(두 번째는 409가 정상이지만 UX상 막는다).
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/admin/tickets/' + id + '/approve', {
+      method: 'POST',
+      headers: { 'Authorization': authHeader }
+    });
+    if (res.ok) loadTickets();
+    else btn.disabled = false;
+  } catch (e) {
+    btn.disabled = false;
+  }
+}
+
+async function searchChunks() {
+  const q = el('chunk-q').value.trim();
+  if (!q) return;
+  const res = await fetch('/api/admin/chunks?q=' + encodeURIComponent(q) + '&topK=5', {
+    headers: { 'Authorization': authHeader }
+  });
+  const box = el('chunk-results');
+  if (!res.ok) { box.textContent = '검색 실패'; return; }
+  const chunks = await res.json();
+  box.innerHTML = '';
+  chunks.forEach(c => {
+    const div = document.createElement('div');
+    div.style.marginBottom = '8px';
+    div.innerHTML = '<div style="font-size:12px;"><b>' + c.source + '</b> (v' + c.version + ', score ' + Number(c.score).toFixed(3) + ')</div>'
+      + '<div class="preview">' + c.preview + '</div>';
+    box.appendChild(div);
+  });
+}
+</script>
+</body>
+</html>

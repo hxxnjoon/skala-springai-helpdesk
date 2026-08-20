@@ -17,6 +17,9 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -46,6 +49,19 @@ public class ChatController {
     @PostMapping
     public AnswerDto chat(@Valid @RequestBody ChatRequest request, Principal user) {
         return helpDeskService.ask(user.getName(), request.sessionId(), request.message());
+    }
+
+    /** 웹 UI 로그인 검증 + 관리자 패널 노출 여부 판단용. */
+    @GetMapping("/me")
+    public MeResponse me(Authentication authentication) {
+        List<String> roles = authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .map(a -> a.startsWith("ROLE_") ? a.substring(5) : a)
+                .toList();
+        return new MeResponse(authentication.getName(), roles);
+    }
+
+    public record MeResponse(String username, List<String> roles) {
     }
 
     @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
