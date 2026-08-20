@@ -1,0 +1,21 @@
+build/
+.gradle/
+!gradle/wrapper/gradle-wrapper.jar
+out/
+bin/
+*.log
+.env
+.idea/
+*.iml
+.vscode/*.local.json
+.DS_Store
+
+# Claude Code 로컬 세션 상태
+.claude/
+
+### 런타임 데이터(로컬 벡터스토어 JSON, H2 파일 DB) ###
+data/*.mv.db
+data/*.trace.db
+data/vectorstore.json
+!data/.gitkeep
+!loadtest/.gitkeep

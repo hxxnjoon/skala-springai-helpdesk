@@ -1,0 +1,80 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.16'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.skala'
+version = '1.0.0'
+
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(21) }
+}
+
+// 편집기·OS 가 달라도 한글 주석·프롬프트가 깨지지 않게 인코딩을 고정한다.
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+tasks.withType(Test).configureEach { systemProperty 'file.encoding', 'UTF-8' }
+tasks.named('bootRun') { jvmArgs = ['-Dfile.encoding=UTF-8'] }
+
+repositories {
+    maven {
+        url = uri("https://maven-central.storage-download.googleapis.com/maven2/")
+    }
+}
+
+ext {
+    // Spring AI BOM — 모듈 버전을 한 번에 맞춘다. 올릴 때는 이 한 줄만 바꾼다.
+    springAiVersion = '1.1.8'
+}
+
+dependencies {
+    // ── 웹 ────────────────────────────────────────────────────
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+    // ── 인증·인가 (Phase 7) ─────────────────────────────────────
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+
+    // ── 관찰 (Phase 8) ──────────────────────────────────────────
+    runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+
+    // ── 폴백 서킷브레이커 (Phase 8) ───────────────────────────────
+    implementation 'org.springframework.boot:spring-boot-starter-aop'
+    implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.2.0'
+
+    // ── Spring AI ─────────────────────────────────────────────
+    implementation 'org.springframework.ai:spring-ai-starter-model-openai'
+    // 인메모리 RAG 벡터스토어(SimpleVectorStore) — 외부 DB 없이 동작
+    implementation 'org.springframework.ai:spring-ai-vector-store'
+    // QuestionAnswerAdvisor — RAG를 Advisor 체인에 결합
+    implementation 'org.springframework.ai:spring-ai-advisors-vector-store'
+    // 대화 메모리를 JDBC(H2 파일 DB)로 영속화 — 재시작해도 대화가 남는다
+    implementation 'org.springframework.ai:spring-ai-starter-model-chat-memory-repository-jdbc'
+    // 사내 문서 파싱
+    implementation 'org.springframework.ai:spring-ai-tika-document-reader'
+
+    // ── 주문·티켓 저장소(Phase 4) ────────────────────────────────
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    runtimeOnly 'com.h2database:h2'
+
+    // ── 테스트 ─────────────────────────────────────────────────
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+}
+
+dependencyManagement {
+    imports { mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}" }
+}
+
+tasks.named('test') {
+    useJUnitPlatform {
+        // 실제 모델을 호출하는 골든셋·레드팀·부하·장애주입 평가는 비용이 들어 기본 실행에서 뺀다.
+        // 포함하려면: ./gradlew test -Peval (OPENAI_API_KEY 필요)
+        if (!project.hasProperty('eval')) {
+            excludeTags 'eval'
+        }
+    }
+}
+
+springBoot { mainClass = 'com.skala.helpdesk.HelpDeskApplication' }
