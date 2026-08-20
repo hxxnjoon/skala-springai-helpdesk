@@ -5,6 +5,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import reactor.core.publisher.Flux;
+
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
@@ -40,19 +42,30 @@ public class HelpDeskService {
     }
 
     public AnswerDto ask(String userId, String sessionId, String message) {
+        AtomicBoolean toolUsed = new AtomicBoolean(false);
+        ChatClientResponse response = request(userId, sessionId, message, toolUsed)
+                .call()
+                .chatClientResponse();
+        return assemble(response, toolUsed.get());
+    }
+
+    /** Phase 6 — 스트리밍은 폴백 서킷브레이커 범위 밖이다(README 참고). */
+    public Flux<ChatClientResponse> stream(String userId, String sessionId, String message) {
+        AtomicBoolean toolUsed = new AtomicBoolean(false); // 스트림 소비 중 도구가 호출되면 true로 뒤집힌다
+        return request(userId, sessionId, message, toolUsed).stream().chatClientResponse();
+    }
+
+    private ChatClient.ChatClientRequestSpec request(String userId, String sessionId, String message,
+                                                       AtomicBoolean toolUsed) {
         String traceId = UUID.randomUUID().toString().substring(0, 8);
         String conversationId = conversationId(userId, sessionId);
-        AtomicBoolean toolUsed = new AtomicBoolean(false);
-        ChatClientResponse response = chatClient.prompt()
+        return chatClient.prompt()
                 .user(message)
                 .advisors(a -> a
                         .param(ChatMemory.CONVERSATION_ID, conversationId)
                         .param("userId", userId)
                         .param("traceId", traceId))
-                .toolContext(Map.of("userId", userId, "traceId", traceId, ToolUsage.CONTEXT_KEY, toolUsed))
-                .call()
-                .chatClientResponse();
-        return assemble(response, toolUsed.get());
+                .toolContext(Map.of("userId", userId, "traceId", traceId, ToolUsage.CONTEXT_KEY, toolUsed));
     }
 
     public static String conversationId(String userId, String sessionId) {
@@ -63,12 +76,12 @@ public class HelpDeskService {
         String answer = response.chatResponse() != null
                 ? response.chatResponse().getResult().getOutput().getText()
                 : "";
-        List<Source> sources = sourcesOf(response);
+        List<Source> sources = extractSources(response);
         return new AnswerDto(answer, sources, toolUsed);
     }
 
     @SuppressWarnings("unchecked")
-    private List<Source> sourcesOf(ChatClientResponse response) {
+    public List<Source> extractSources(ChatClientResponse response) {
         Object raw = response.context().get(QuestionAnswerAdvisor.RETRIEVED_DOCUMENTS);
         if (!(raw instanceof List<?> docs)) {
             return List.of();
