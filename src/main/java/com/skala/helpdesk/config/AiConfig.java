@@ -17,6 +17,8 @@ import org.springframework.context.annotation.Configuration;
 import com.skala.helpdesk.advisor.AuditAdvisor;
 import com.skala.helpdesk.advisor.AuditLog;
 import com.skala.helpdesk.advisor.TokenMeterAdvisor;
+import com.skala.helpdesk.tools.OrderTools;
+import com.skala.helpdesk.tools.TicketTools;
 
 /**
  * Phase 1 — 상담 에이전트 조립. Advisor의 order가 곧 정책이다:
@@ -58,7 +60,8 @@ class AiConfig {
 
     @Bean
     ChatClient helpDeskChatClient(ChatClient.Builder builder, VectorStore vectorStore, ChatMemory chatMemory,
-                                   HelpDeskProperties props, AuditLog auditLog, MeterRegistry registry) {
+                                   HelpDeskProperties props, AuditLog auditLog, MeterRegistry registry,
+                                   OrderTools orderTools, TicketTools ticketTools) {
         return builder
                 .defaultSystem(SYSTEM_PROMPT)
                 .defaultAdvisors(
@@ -76,6 +79,7 @@ class AiConfig {
                                 .order(300)
                                 .build(),
                         new TokenMeterAdvisor(registry))
+                .defaultTools(orderTools, ticketTools)
                 .build();
     }
 }
