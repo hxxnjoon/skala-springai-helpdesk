@@ -22,7 +22,10 @@ spring:
       memory:
         repository:
           jdbc:
-            initialize-schema: embedded   # H2 파일 DB에 SPRING_AI_CHAT_MEMORY 테이블 자동 생성
+            # 기본값 embedded는 jdbc:h2:mem: 같은 진짜 인메모리 DB만 자동 초기화 대상으로
+            # 인식한다 — jdbc:h2:file:은 "임베디드"로 감지되지 않아 스키마가 생성되지
+            # 않았다(실제로 겪은 문제). 파일 DB에도 테이블을 만들도록 always로 명시한다.
+            initialize-schema: always
 
   datasource:
     url: jdbc:h2:file:./data/helpdesk;DB_CLOSE_ON_EXIT=FALSE
