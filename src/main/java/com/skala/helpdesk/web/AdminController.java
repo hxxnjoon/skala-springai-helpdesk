@@ -6,6 +6,7 @@ import java.util.Map;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -71,6 +72,9 @@ public class AdminController {
     }
 
     @PostMapping("/tickets/{id}/approve")
+    @Transactional // findById가 반환하는 detached 엔티티에 approve()만 호출하면 DB에 반영되지
+                    // 않는다 — 트랜잭션 안에서 관리되는(managed) 엔티티여야 커밋 시점에
+                    // dirty checking으로 자동 flush된다(실제로 재승인이 막히지 않는 버그로 발견).
     public TicketView approveTicket(@PathVariable Long id) {
         Ticket ticket = tickets.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("승인 요청을 찾을 수 없습니다: " + id));
