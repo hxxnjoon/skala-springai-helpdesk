@@ -1,0 +1,72 @@
+spring:
+  application:
+    name: skala-helpdesk-ai
+
+  ai:
+    openai:
+      # 키는 소스에 넣지 않는다. export OPENAI_API_KEY="sk-..."
+      api-key: ${OPENAI_API_KEY:not-set}
+      chat:
+        options:
+          model: ${HELPDESK_PRIMARY_MODEL:gpt-4o-mini}
+          temperature: 0.3
+      embedding:
+        options:
+          model: text-embedding-3-large
+    chat:
+      observations:
+        log-prompt: false   # 운영에서는 프롬프트 원문 로깅을 반드시 끈다
+      client:
+        observations:
+          log-prompt: false
+      memory:
+        repository:
+          jdbc:
+            initialize-schema: embedded   # H2 파일 DB에 SPRING_AI_CHAT_MEMORY 테이블 자동 생성
+
+  datasource:
+    url: jdbc:h2:file:./data/helpdesk;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: update   # 주문·티켓·대화 메모리가 재시작 후에도 남아야 하므로 create-drop 금지
+    open-in-view: false
+    show-sql: true
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+server:
+  port: 8080
+
+helpdesk:
+  rag:
+    top-k: 4
+    threshold: 0.4
+  memory:
+    max-messages: 20
+  tokens:
+    budget-per-query: 1500   # 강제하지 않는다 — ai.tokens 지표로 리뷰하는 용도
+  model:
+    primary: ${spring.ai.openai.chat.options.model}
+    fallback: ${HELPDESK_FALLBACK_MODEL:gpt-4.1-mini}
+  safety:
+    sensitive-words:
+      - 주민등록번호
+      - 카드번호
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  metrics:
+    tags:
+      application: skala-helpdesk-ai
+
+logging:
+  level:
+    com.skala.helpdesk: DEBUG
