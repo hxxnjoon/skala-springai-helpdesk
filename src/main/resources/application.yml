@@ -26,6 +26,10 @@ spring:
             # 인식한다 — jdbc:h2:file:은 "임베디드"로 감지되지 않아 스키마가 생성되지
             # 않았다(실제로 겪은 문제). 파일 DB에도 테이블을 만들도록 always로 명시한다.
             initialize-schema: always
+            # 기본 스키마의 conversation_id VARCHAR(36)은 UUID 하나 기준이라
+            # "tenantId:userId:sessionId" 형식(40자 이상)이 들어가면 INSERT가 매번
+            # 실패했다(실제 운영 중 발견) — 컬럼을 넓힌 커스텀 스키마를 쓴다.
+            schema: classpath:db/chat-memory-schema.sql
 
   datasource:
     url: jdbc:h2:file:./data/helpdesk;DB_CLOSE_ON_EXIT=FALSE
