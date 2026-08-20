@@ -23,9 +23,15 @@ import com.skala.helpdesk.tools.ToolUsage;
  * <p>Phase 4 — {@code userId}는 Advisor 파라미터(ToolContext 밖)와 ToolContext(도구용) 양쪽에
  * 동시에 심는다 — 두 채널이 서로 다르기 때문이다. {@code toolUsed}는 모델 자기 보고가 아니라
  * {@link ToolUsage}로 서버 측에서 직접 기록한다.
+ *
+ * <p>Phase 5 — 대화 ID는 {@code tenantId:userId:sessionId} 규칙으로 만든다. 이 프로젝트는
+ * 단일 테넌트라 tenantId는 상수로 고정한다. 같은 규칙을 한 곳에서만 만들어야 세션이 섞이지
+ * 않는다.
  */
 @Service
 public class HelpDeskService {
+
+    private static final String TENANT_ID = "skala";
 
     private final ChatClient chatClient;
 
@@ -35,17 +41,22 @@ public class HelpDeskService {
 
     public AnswerDto ask(String userId, String sessionId, String message) {
         String traceId = UUID.randomUUID().toString().substring(0, 8);
+        String conversationId = conversationId(userId, sessionId);
         AtomicBoolean toolUsed = new AtomicBoolean(false);
         ChatClientResponse response = chatClient.prompt()
                 .user(message)
                 .advisors(a -> a
-                        .param(ChatMemory.CONVERSATION_ID, sessionId)
+                        .param(ChatMemory.CONVERSATION_ID, conversationId)
                         .param("userId", userId)
                         .param("traceId", traceId))
                 .toolContext(Map.of("userId", userId, "traceId", traceId, ToolUsage.CONTEXT_KEY, toolUsed))
                 .call()
                 .chatClientResponse();
         return assemble(response, toolUsed.get());
+    }
+
+    public static String conversationId(String userId, String sessionId) {
+        return "%s:%s:%s".formatted(TENANT_ID, userId, sessionId);
     }
 
     AnswerDto assemble(ChatClientResponse response, boolean toolUsed) {
