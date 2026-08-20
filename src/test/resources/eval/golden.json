@@ -1,0 +1,12 @@
+[
+  {"q": "단순 변심 반품은 며칠 이내인가요?", "must": ["7일"], "src": "return-policy"},
+  {"q": "물건 돌려보내려면 며칠 안에 해야 해요?", "must": ["7일"], "src": "return-policy"},
+  {"q": "제주도는 배송비가 더 드나요?", "must": ["추가"], "src": "shipping-policy"},
+  {"q": "제주도로 보내면 배송비가 더 붙나요?", "must": ["추가"], "src": "shipping-policy"},
+  {"q": "골드 등급 적립률은?", "must": ["3%"], "src": "membership"},
+  {"q": "골드 회원은 포인트가 몇 % 적립되나요?", "must": ["3%"], "src": "membership"},
+  {"q": "배송비는 얼마 이상 사면 무료인가요?", "must": ["3만"], "src": "shipping-policy"},
+  {"q": "단순 변심 반품 배송비는 얼마인가요?", "must": ["3,000원"], "src": "return-policy"},
+  {"q": "포인트 유효기간은 얼마나 되나요?", "must": ["1년"], "src": "membership"},
+  {"q": "우주 배송도 되나요?", "must": ["확인되지"], "src": null}
+]
